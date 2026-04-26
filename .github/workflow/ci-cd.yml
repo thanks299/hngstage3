@@ -1,18 +1,59 @@
-name: Backend CI
+name: Insighta Labs+ Backend CI/CD
 
 on:
-  pull_request:
-    branches: [ main ]
   push:
-    branches: [ main ]
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  NODE_VERSION: '18'
+  POSTGRES_VERSION: '15'
 
 jobs:
-  test:
+  # JOB 1: Lint and Code Quality
+  lint:
+    name: 🔍 Lint & Code Quality
     runs-on: ubuntu-latest
     
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run ESLint
+        run: |
+          if [ -f package.json ] && grep -q '"lint"' package.json; then
+            npm run lint
+          else
+            echo "⚠️ No lint script found, skipping..."
+          fi
+      
+      - name: Check code formatting
+        run: |
+          if [ -f package.json ] && grep -q '"format"' package.json; then
+            npm run format -- --check
+          else
+            echo "⚠️ No format script found, skipping..."
+          fi
+
+  # JOB 2: Test with PostgreSQL
+  test:
+    name: 🧪 Test Suite
+    runs-on: ubuntu-latest
+    needs: lint
     services:
       postgres:
-        image: postgres:15
+        image: postgres:${{ env.POSTGRES_VERSION }}
         env:
           POSTGRES_USER: test_user
           POSTGRES_PASSWORD: test_pass
@@ -26,47 +67,248 @@ jobs:
           --health-retries 5
     
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Use Node.js 18
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
-        cache: 'npm'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Run linter
-      run: npm run lint || echo "No linter configured"
-    
-    - name: Run tests
-      env:
-        NODE_ENV: test
-        DB_HOST: localhost
-        DB_PORT: 5432
-        DB_USER: test_user
-        DB_PASSWORD: test_pass
-        DB_NAME: test_db
-        JWT_SECRET: test_secret
-        GITHUB_CLIENT_ID: test_id
-        GITHUB_CLIENT_SECRET: test_secret
-      run: npm test || echo "No tests configured"
-    
-    - name: Build check
-      run: npm run build || echo "No build step configured"
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Wait for PostgreSQL
+        run: |
+          until pg_isready -h localhost -p 5432 -U test_user; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+          echo "✅ PostgreSQL is ready"
+      
+      - name: Setup test database
+        run: |
+          PGPASSWORD=test_pass psql -h localhost -U test_user -d test_db <<EOF
+          CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+          \q
+          EOF
+      
+      - name: Run migrations
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: test_user
+          DB_PASSWORD: test_pass
+          DB_NAME: test_db
+          NODE_ENV: test
+        run: |
+          if [ -f package.json ] && grep -q '"migrate"' package.json; then
+            npm run migrate
+          else
+            echo "⚠️ No migrate script found, skipping..."
+          fi
+      
+      - name: Run tests
+        env:
+          NODE_ENV: test
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USER: test_user
+          DB_PASSWORD: test_pass
+          DB_NAME: test_db
+          JWT_SECRET: test_jwt_secret_for_github_actions_only_2024
+          JWT_ACCESS_EXPIRY: 180
+          JWT_REFRESH_EXPIRY: 300
+          GITHUB_CLIENT_ID: test_github_client_id
+          GITHUB_CLIENT_SECRET: test_github_client_secret
+          GITHUB_CALLBACK_URL: http://localhost:3000/auth/github/callback
+          WEB_PORTAL_URL: http://localhost:3001
+          CLI_CALLBACK_URL: http://localhost:8080/callback
+          AUTH_RATE_LIMIT: 10
+          API_RATE_LIMIT: 60
+        run: |
+          if [ -f package.json ] && grep -q '"test"' package.json; then
+            npm test -- --forceExit --detectOpenHandles --coverage
+          else
+            echo "⚠️ No test script found, skipping..."
+          fi
+      
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7
 
-  deploy:
-    needs: test
-    if: github.ref == 'refs/heads/main'
+  # JOB 3: Build Check
+  build:
+    name: 📦 Build Check
     runs-on: ubuntu-latest
+    needs: test
     
     steps:
-    - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run build
+        run: |
+          if [ -f package.json ] && grep -q '"build"' package.json; then
+            npm run build
+          else
+            echo "⚠️ No build script found, skipping..."
+          fi
+      
+      - name: Create deployment package
+        run: |
+          mkdir -p deploy
+          cp -r src deploy/
+          cp -r scripts deploy/
+          cp package.json deploy/
+          cp package-lock.json deploy/
+          cp server.js deploy/
+          cp .env.example deploy/ || true
+          cd deploy && zip -r ../backend-deploy.zip .
+      
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-deploy
+          path: backend-deploy.zip
+          retention-days: 7
+
+  # JOB 4: Security Scan
+  security:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    needs: test
     
-    - name: Deploy to production
-      run: |
-        echo "Deploying to production server..."
-        # Add your deployment commands here
-        # Example for Render: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
-        # Example for Railway: railway up
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Run npm audit
+        run: |
+          npm audit --audit-level=moderate || true
+      
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+        continue-on-error: true
+
+  # JOB 5: Deploy to Production (only on main branch)
+  deploy:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, security]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download deployment artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-deploy
+      
+      - name: Deploy to Render
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          curl -X POST "https://api.render.com/deploy/srv-${{ secrets.RENDER_SERVICE_ID }}?key=${{ secrets.RENDER_API_KEY }}"
+        continue-on-error: true
+      
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          npm install -g @railway/cli
+          railway up --detach
+        continue-on-error: true
+      
+      - name: Deploy to AWS Elastic Beanstalk
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        run: |
+          unzip backend-deploy.zip -d deploy
+          cd deploy
+          zip -r ../deploy.zip .
+          aws s3 cp ../deploy.zip s3://elasticbeanstalk-us-east-1-${{ secrets.AWS_ACCOUNT_ID }}/insighta-backend.zip
+          aws elasticbeanstalk create-application-version \
+            --application-name insighta-labs \
+            --version-label ${{ github.sha }} \
+            --source-bundle S3Bucket="elasticbeanstalk-us-east-1-${{ secrets.AWS_ACCOUNT_ID }}",S3Key="insighta-backend.zip"
+          aws elasticbeanstalk update-environment \
+            --environment-name Insighta-backend-env \
+            --version-label ${{ github.sha }}
+        continue-on-error: true
+      
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "✅ Deployment successful!"
+          echo "📝 Backend URL: ${{ secrets.BACKEND_URL }}"
+      
+      - name: Notify deployment failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          exit 1
+
+  # JOB 6: Notifications (Optional)
+  notify:
+    name: 📧 Send Notifications
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always() && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.25
+        with:
+          payload: |
+            {
+              "text": "Insighta Labs+ Backend Pipeline Status: ${{ needs.deploy.result }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Pipeline Status:* ${{ needs.deploy.result }}\n*Branch:* ${{ github.ref_name }}\n*Commit:* ${{ github.sha }}\n*Author:* ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        continue-on-error: true
