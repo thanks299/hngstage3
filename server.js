@@ -88,7 +88,7 @@ const startServer = async () => {
             console.log(`\n🚀 Insighta Labs+ Server is running!`);
             console.log(`📍 URL: http://localhost:${PORT}`);
             console.log(`🔐 Auth: http://localhost:${PORT}/auth/github`);
-            console.log(`📊 API: http://localhost:${PORT}/api/v1/profiles`);
+            console.log(`📊 API: http://localhost:${PORT}/api/profiles`);
             console.log(`🔍 Search: http://localhost:${PORT}/api/profiles/search?q=young males`);
             console.log(`❤️ Health: http://localhost:${PORT}/health\n`);
         });

@@ -45,7 +45,7 @@ describe('Profile API Tests', () => {
                 .get('/api/v1/profiles')
                 .expect(400);
             
-            expect(response.body.message).toBe('API version header required');
+            expect(response.body.message).toBe('API version header required. Please use X-API-Version: 1');
         });
     });
 

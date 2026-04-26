@@ -137,10 +137,12 @@ class ProfileController {
             
             const insertQuery = `
                 INSERT INTO profiles (
-                    name, gender, gender_probability,
+                    id, name, gender, gender_probability,
                     age, age_group,
                     country_id, country_name, country_probability
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                ) VALUES (
+                    gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8
+                )
                 RETURNING *
             `;
             

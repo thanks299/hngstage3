@@ -36,15 +36,21 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Routes
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+    console.log(`[DEBUG] ${req.method} ${req.url}`);
+    next();
+});
+
+// Routes - FIXED: Remove trailing slash from mount path
 app.use('/auth', authRoutes);
-app.use('/api', profileRoutes);
+app.use('/api/profiles', profileRoutes);  
 
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({
         status: 'error',
-        message: 'Endpoint not found'
+        message: `Endpoint not found: ${req.method} ${req.originalUrl}`
     });
 });
 
