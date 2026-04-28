@@ -8,14 +8,28 @@ router.use(authLimiter);
 // Generate GitHub OAuth URL (used by CLI and Web)
 router.get("/github", (req, res) => {
   const clientId = process.env.GITHUB_CLIENT_ID;
-  const redirectUri = process.env.GITHUB_CALLBACK_URL;
+  let redirectUri = process.env.GITHUB_CALLBACK_URL;
   const state = req.query.state || "";
   const isCLI = req.query.is_cli === "true";
+  const cliCallbackUrl =
+    req.query.cli_callback_url || "http://localhost:8080/callback";
 
-  let url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=user:email`;
+  // Allow CLI to override redirect_uri with its local callback
+  if (isCLI && req.query.redirect_uri) {
+    redirectUri = req.query.redirect_uri;
+  }
+
+  let url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`;
 
   if (state) {
-    url += `&state=${state}`;
+    url += `&state=${encodeURIComponent(state)}`;
+  } else if (isCLI) {
+    // Create state object with CLI flag and callback URL
+    const stateObj = JSON.stringify({
+      is_cli: true,
+      cli_callback_url: cliCallbackUrl,
+    });
+    url += `&state=${encodeURIComponent(stateObj)}`;
   }
 
   if (isCLI) {

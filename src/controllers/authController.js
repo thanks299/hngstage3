@@ -9,9 +9,13 @@ class AuthController {
     const { code, state } = req.query;
 
     let is_cli = false;
+    let cliCallbackUrl = "http://localhost:8080/callback"; // default
     try {
       const stateObj = JSON.parse(state);
       is_cli = stateObj.is_cli;
+      if (stateObj.cli_callback_url) {
+        cliCallbackUrl = stateObj.cli_callback_url;
+      }
     } catch (e) {
       console.warn("Invalid GitHub callback state payload:", e.message);
       is_cli = req.query.is_cli == "true";
@@ -152,16 +156,16 @@ class AuthController {
 
       // Check if request is from CLI
       if (is_cli) {
-        return res.json({
-          status: "success",
-          access_token: accessToken,
-          refresh_token: refreshToken,
-          user: {
-            id: user.id,
-            username: user.username,
-            role: user.role,
-          },
-        });
+        // Redirect to CLI's local callback with tokens
+        const cliUrl = new URL(cliCallbackUrl);
+        cliUrl.searchParams.append("access_token", accessToken);
+        cliUrl.searchParams.append("refresh_token", refreshToken);
+        cliUrl.searchParams.append("user_id", user.id);
+        cliUrl.searchParams.append("username", user.username);
+        cliUrl.searchParams.append("role", user.role);
+
+        console.log("📱 CLI request detected, redirecting to:", cliCallbackUrl);
+        return res.redirect(cliUrl.toString());
       }
 
       // Redirect to web portal
