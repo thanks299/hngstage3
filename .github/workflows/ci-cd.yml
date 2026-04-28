@@ -173,7 +173,7 @@ jobs:
         image: postgres:15
         env:
           POSTGRES_USER: integration_user
-          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
+          POSTGRES_PASSWORD: integration_pass
           POSTGRES_DB: integration_db
         ports:
           - 5432:5432
@@ -212,20 +212,38 @@ jobs:
       - name: Setup integration database
         run: |
           sudo apt-get install -y postgresql-client
-          PGPASSWORD=${{ secrets.CI_POSTGRES_PASSWORD }} psql -h localhost -U integration_user -d integration_db <<EOF
+          PGPASSWORD=integration_pass psql -h localhost -U integration_user -d integration_db <<EOF
           CREATE EXTENSION IF NOT EXISTS "pgcrypto";
           \q
           EOF
 
+      # ADD THESE ENVIRONMENT VARIABLES
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://integration_user:integration_pass@localhost:5432/integration_db
+          NODE_ENV: test
+          JWT_SECRET: integration_test_secret
+          GITHUB_CLIENT_ID: test_client_id
+          GITHUB_CLIENT_SECRET: test_client_secret
+        run: |
+          cd extracted
+          if npm run migrate 2>/dev/null; then
+            echo "✅ Migrations completed"
+          else
+            echo "⚠️ No migrations script found"
+          fi
+
       - name: Run integration tests
         env:
           NODE_ENV: test
+          DATABASE_URL: postgresql://integration_user:integration_pass@localhost:5432/integration_db
           JWT_SECRET: integration_test_secret
           JWT_ACCESS_EXPIRY: 180
           JWT_REFRESH_EXPIRY: 300
           GITHUB_CLIENT_ID: test_client_id
           GITHUB_CLIENT_SECRET: test_client_secret
         run: |
+          cd extracted
           if npm run test:integration 2>/dev/null; then
             echo "✅ Integration tests passed"
           else
@@ -233,9 +251,19 @@ jobs:
           fi
 
       - name: Start server and test health endpoint
+        env:
+          DATABASE_URL: postgresql://integration_user:integration_pass@localhost:5432/integration_db
+          NODE_ENV: test
+          JWT_SECRET: integration_test_secret
+          JWT_ACCESS_EXPIRY: 180
+          JWT_REFRESH_EXPIRY: 300
+          GITHUB_CLIENT_ID: test_client_id
+          GITHUB_CLIENT_SECRET: test_client_secret
+          PORT: 3000
         run: |
+          cd extracted
           node server.js &
-          sleep 5
+          sleep 10
           curl -f http://localhost:3000/health || exit 1
           echo "✅ Server started successfully"
 
