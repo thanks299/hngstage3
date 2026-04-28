@@ -6,7 +6,16 @@ const crypto = require("node:crypto");
 class AuthController {
   // Generate GitHub OAuth URL with PKCE
   static async githubCallback(req, res) {
-    const { code, is_cli } = req.query;
+    const { code, state } = req.query;
+
+    let is_cli = false;
+    try {
+      const stateObj = JSON.parse(state);
+      is_cli = stateObj.is_cli === true;
+    } catch (e) {
+      console.warn("Invalid GitHub callback state payload:", e.message);
+      is_cli = req.query.is_cli === "true";
+    }
 
     console.log("📥 GitHub Callback received");
     console.log("is_cli flag:", is_cli);
