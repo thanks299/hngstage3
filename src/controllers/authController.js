@@ -11,10 +11,10 @@ class AuthController {
     let is_cli = false;
     try {
       const stateObj = JSON.parse(state);
-      is_cli = stateObj.is_cli === true;
+      is_cli = stateObj.is_cli;
     } catch (e) {
       console.warn("Invalid GitHub callback state payload:", e.message);
-      is_cli = req.query.is_cli === "true";
+      is_cli = req.query.is_cli == "true";
     }
 
     console.log("📥 GitHub Callback received");
@@ -28,7 +28,6 @@ class AuthController {
     }
 
     try {
-      // Exchange code for access token
       const tokenResponse = await axios.post(
         "https://github.com/login/oauth/access_token",
         {
@@ -152,7 +151,7 @@ class AuthController {
       });
 
       // Check if request is from CLI
-      if (is_cli === "true") {
+      if (is_cli) {
         return res.json({
           status: "success",
           access_token: accessToken,
