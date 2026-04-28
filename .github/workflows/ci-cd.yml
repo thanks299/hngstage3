@@ -9,6 +9,7 @@ on:
 
 env:
   NODE_VERSION: "18"
+  DATABASE_URL: postgresql://test_user:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/test_db
 
 jobs:
   # ============================================
@@ -24,7 +25,7 @@ jobs:
         image: postgres:15
         env:
           POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_pass
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
           POSTGRES_DB: test_db
         ports:
           - 5432:5432
@@ -58,26 +59,24 @@ jobs:
 
       - name: Setup test database
         run: |
-          PGPASSWORD=test_pass psql -h localhost -U test_user -d test_db <<EOF
+          PGPASSWORD=${{ secrets.CI_POSTGRES_PASSWORD }} psql -h localhost -U test_user -d test_db <<EOF
           CREATE EXTENSION IF NOT EXISTS "pgcrypto";
           \q
           EOF
 
       - name: Run database migrations
         env:
-          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
           NODE_ENV: test
         run: |
           if npm run migrate 2>/dev/null; then
-          echo "✅ Migrations completed"
+            echo "✅ Migrations completed"
           else
-          echo "⚠️ No migrations script found"
+            echo "⚠️ No migrations script found"
           fi
 
       - name: Run tests with coverage
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
           JWT_SECRET: test_secret_key_for_ci
           JWT_ACCESS_EXPIRY: 180
           JWT_REFRESH_EXPIRY: 300
@@ -174,7 +173,7 @@ jobs:
         image: postgres:15
         env:
           POSTGRES_USER: integration_user
-          POSTGRES_PASSWORD: integration_pass
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
           POSTGRES_DB: integration_db
         ports:
           - 5432:5432
@@ -213,7 +212,7 @@ jobs:
       - name: Setup integration database
         run: |
           sudo apt-get install -y postgresql-client
-          PGPASSWORD=integration_pass psql -h localhost -U integration_user -d integration_db <<EOF
+          PGPASSWORD=${{ secrets.CI_POSTGRES_PASSWORD }} psql -h localhost -U integration_user -d integration_db <<EOF
           CREATE EXTENSION IF NOT EXISTS "pgcrypto";
           \q
           EOF
@@ -221,7 +220,6 @@ jobs:
       - name: Run integration tests
         env:
           NODE_ENV: test
-          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
           JWT_SECRET: integration_test_secret
           JWT_ACCESS_EXPIRY: 180
           JWT_REFRESH_EXPIRY: 300
@@ -313,21 +311,12 @@ jobs:
     if: always() && github.ref == 'refs/heads/main'
 
     steps:
-      - name: Send Slack notification
-        run: |
-          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
-            curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
-              -H 'Content-Type: application/json' \
-              -d '{
-                "text": "Backend Pipeline Status: ${{ needs.deploy.result }}",
-                "blocks": [{
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*Pipeline Status:* ${{ needs.deploy.result }}\n*Branch:* ${{ github.ref_name }}\n*Commit:* ${{ github.sha }}\n*Author:* ${{ github.actor }}"
-                  }
-                }]
-              }'
-          else
-            echo "No Slack webhook configured"
-          fi
+      - name: Slack Notification
+        uses: slackapi/slack-github-action@v1.25.0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          payload: |
+            {
+              "text": "Pipeline Status: ${{ needs.deploy.result }}"
+            }
