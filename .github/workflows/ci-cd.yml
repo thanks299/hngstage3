@@ -96,8 +96,7 @@ jobs:
       - name: Deploy to Render
         run: |
           echo "Deployment would run here"
-          # Uncomment when ready with your Render API key
-          # curl -X POST https://api.render.com/deploy/${{ secrets.RENDER_SERVICE_ID }} \
-          #   -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
-          #   -H "Content-Type: application/json" \
-          #   -d '{"clearCache": true}'
+          curl -X POST https://api.render.com/deploy/${{ secrets.RENDER_SERVICE_ID }} \
+            -H "Authorization: Bearer ${{ secrets.RENDER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{"clearCache": true}'
