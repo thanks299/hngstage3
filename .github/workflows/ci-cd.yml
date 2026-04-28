@@ -65,27 +65,19 @@ jobs:
 
       - name: Run database migrations
         env:
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USER: test_user
-          DB_PASSWORD: test_pass
-          DB_NAME: test_db
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
           NODE_ENV: test
         run: |
           if npm run migrate 2>/dev/null; then
-            echo "✅ Migrations completed"
+          echo "✅ Migrations completed"
           else
-            echo "⚠️ No migrations script found"
+          echo "⚠️ No migrations script found"
           fi
 
       - name: Run tests with coverage
         env:
           NODE_ENV: test
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USER: test_user
-          DB_PASSWORD: test_pass
-          DB_NAME: test_db
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
           JWT_SECRET: test_secret_key_for_ci
           JWT_ACCESS_EXPIRY: 180
           JWT_REFRESH_EXPIRY: 300
@@ -229,11 +221,7 @@ jobs:
       - name: Run integration tests
         env:
           NODE_ENV: test
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USER: integration_user
-          DB_PASSWORD: integration_pass
-          DB_NAME: integration_db
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
           JWT_SECRET: integration_test_secret
           JWT_ACCESS_EXPIRY: 180
           JWT_REFRESH_EXPIRY: 300
