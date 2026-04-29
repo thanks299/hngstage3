@@ -3,10 +3,23 @@ const router = express.Router();
 const AuthController = require("../controllers/authController");
 const { authLimiter } = require("../middleware/rateLimiter");
 
+// Add CORS preflight handler
+router.options("/github", (req, res) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.status(200).end();
+});
+
 router.use(authLimiter);
 
 // Generate GitHub OAuth URL (used by CLI and Web)
 router.get("/github", (req, res) => {
+  // Add explicit CORS headers for browser
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
   const clientId = process.env.GITHUB_CLIENT_ID;
   let redirectUri = process.env.GITHUB_CALLBACK_URL;
   let state = req.query.state || "";
@@ -63,6 +76,15 @@ router.get("/github", (req, res) => {
 
 router.get("/github/callback", AuthController.githubCallback);
 router.post("/refresh", authLimiter, AuthController.refreshToken);
-router.post("/logout", AuthController.logout);
+router.post("/logout", (req, res, next) => {
+  // Enforce POST method
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      status: "error",
+      message: "Method not allowed. Use POST for logout.",
+    });
+  }
+  next();
+}, AuthController.logout);
 
 module.exports = router;

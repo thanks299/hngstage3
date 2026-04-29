@@ -10,6 +10,7 @@ const { validateEnv } = require('./config/env');
 // Import routes
 const authRoutes = require('./routes/auth');
 const profileRoutes = require('./routes/profiles');
+const userRoutes = require('./routes/users');
 
 // Validate environment variables
 validateEnv();
@@ -44,6 +45,7 @@ app.use((req, res, next) => {
 
 // Routes - FIXED: Remove trailing slash from mount path
 app.use('/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/profiles', profileRoutes);  
 
 // 404 handler

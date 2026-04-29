@@ -1,10 +1,10 @@
 const rateLimit = require("express-rate-limit");
 
-// Skip rate limiting in test environment
-const isTest = process.env.NODE_ENV === "test";
+// Only skip rate limiting during Jest testing (NODE_ENV=test AND running under Jest)
+const isJest = process.env.NODE_ENV === "test" && typeof jest !== "undefined";
 
 // Rate limiter for auth endpoints (10 requests per minute)
-const authLimiter = isTest
+const authLimiter = isJest
   ? (req, res, next) => next()
   : rateLimit({
       windowMs: 60 * 1000, // 1 minute
@@ -21,7 +21,7 @@ const authLimiter = isTest
     });
 
 // Rate limiter for API endpoints (60 requests per minute per user)
-const apiLimiter = isTest
+const apiLimiter = isJest
   ? (req, res, next) => next()
   : rateLimit({
       windowMs: 60 * 1000,
@@ -36,7 +36,7 @@ const apiLimiter = isTest
     });
 
 // Stricter limiter for create/delete operations
-const strictLimiter = isTest
+const strictLimiter = isJest
   ? (req, res, next) => next()
   : rateLimit({
       windowMs: 60 * 1000,
