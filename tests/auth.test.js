@@ -7,12 +7,23 @@ const RefreshToken = require("../src/models/RefreshToken");
 describe("Authentication Tests", () => {
   beforeAll(async () => {
     // Clean up test data
-    await pool.query("DELETE FROM refresh_tokens");
-    await pool.query("DELETE FROM users");
+    try {
+      await pool.query("DELETE FROM refresh_tokens");
+      await pool.query("DELETE FROM users");
+    } catch (err) {
+      // Ignore if tables don't exist yet
+    }
   });
 
   afterAll(async () => {
-    await pool.end();
+    try {
+      if (pool && !pool.ended) {
+        await pool.end();
+      }
+    } catch (err) {
+      // Ignore errors during cleanup
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
   });
 
   describe("GET /auth/github", () => {

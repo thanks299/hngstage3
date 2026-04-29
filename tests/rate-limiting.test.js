@@ -7,27 +7,39 @@ describe("Rate Limiting Tests", () => {
   let adminToken;
 
   beforeAll(async () => {
-    // Clean up
-    await pool.query("DELETE FROM refresh_tokens");
-    await pool.query("DELETE FROM users");
+    try {
+      // Clean up
+      await pool.query("DELETE FROM refresh_tokens");
+      await pool.query("DELETE FROM users");
 
-    // Create admin user
-    const adminResult = await pool.query(
-      `
+      // Create admin user
+      const adminResult = await pool.query(
+        `
             INSERT INTO users (github_id, username, email, role, is_active)
             VALUES ($1, $2, $3, $4, $5)
             RETURNING id
         `,
-      ["rate_admin", "rateadmin", "rate@test.com", "admin", true],
-    );
-    adminToken = TokenService.generateAccessToken(
-      adminResult.rows[0].id,
-      "admin",
-    );
+        ["rate_admin", "rateadmin", "rate@test.com", "admin", true],
+      );
+      adminToken = TokenService.generateAccessToken(
+        adminResult.rows[0].id,
+        "admin",
+      );
+    } catch (err) {
+      console.error("Rate limit test setup error:", err.message);
+      throw err;
+    }
   });
 
   afterAll(async () => {
-    await pool.end();
+    try {
+      if (pool && !pool.ended) {
+        await pool.end();
+      }
+    } catch (err) {
+      // Ignore errors during cleanup
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
   });
 
   describe("Auth Endpoint Rate Limiting", () => {

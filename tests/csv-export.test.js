@@ -8,47 +8,52 @@ describe("CSV Export Tests", () => {
   let analystToken;
 
   beforeAll(async () => {
-    // Clean up
-    await pool.query("DELETE FROM refresh_tokens");
-    await pool.query("DELETE FROM users");
-    await pool.query("DELETE FROM profiles");
+    try {
+      // Clean up
+      await pool.query("DELETE FROM refresh_tokens");
+      await pool.query("DELETE FROM users");
+      await pool.query("DELETE FROM profiles");
 
-    // Create admin user
-    const adminResult = await pool.query(
-      `
-      INSERT INTO users (github_id, username, email, role, is_active)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id
-      `,
-      ["csv_admin", "csvadmin", "csv@test.com", "admin", true],
-    );
-    adminToken = TokenService.generateAccessToken(
-      adminResult.rows[0].id,
-      "admin",
-    );
+      // Create admin user
+      const adminResult = await pool.query(
+        `
+        INSERT INTO users (github_id, username, email, role, is_active)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id
+        `,
+        ["csv_admin", "csvadmin", "csv@test.com", "admin", true],
+      );
+      adminToken = TokenService.generateAccessToken(
+        adminResult.rows[0].id,
+        "admin",
+      );
 
-    // Create analyst user
-    const analystResult = await pool.query(
-      `
-      INSERT INTO users (github_id, username, email, role, is_active)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id
-      `,
-      ["csv_analyst", "csvanalyst", "csvanalyst@test.com", "analyst", true],
-    );
-    analystToken = TokenService.generateAccessToken(
-      analystResult.rows[0].id,
-      "analyst",
-    );
+      // Create analyst user
+      const analystResult = await pool.query(
+        `
+        INSERT INTO users (github_id, username, email, role, is_active)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id
+        `,
+        ["csv_analyst", "csvanalyst", "csvanalyst@test.com", "analyst", true],
+      );
+      analystToken = TokenService.generateAccessToken(
+        analystResult.rows[0].id,
+        "analyst",
+      );
 
-    // Create test profiles
-    await pool.query(`
-      INSERT INTO profiles (name, gender, age, country_id, created_at)
-      VALUES 
-      ('export test 1', 'male', 25, 'NG', NOW()),
-      ('export test 2', 'female', 30, 'KE', NOW()),
-      ('export test 3', 'male', 35, 'GH', NOW())
-    `);
+      // Create test profiles
+      await pool.query(`
+        INSERT INTO profiles (name, gender, age, country_id, created_at)
+        VALUES 
+        ('export test 1', 'male', 25, 'NG', NOW()),
+        ('export test 2', 'female', 30, 'KE', NOW()),
+        ('export test 3', 'male', 35, 'GH', NOW())
+      `);
+    } catch (err) {
+      console.error("CSV test setup error:", err.message);
+      throw err;
+    }
   });
 
   describe("GET /api/profiles/export/csv", () => {

@@ -9,51 +9,56 @@ describe("Role-Based Access Control (RBAC) Tests", () => {
   let inactiveUserToken;
 
   beforeAll(async () => {
-    // Clean up
-    await pool.query("DELETE FROM refresh_tokens");
-    await pool.query("DELETE FROM users");
+    try {
+      // Clean up
+      await pool.query("DELETE FROM refresh_tokens");
+      await pool.query("DELETE FROM users");
 
-    // Create admin user
-    const adminResult = await pool.query(
-      `
-      INSERT INTO users (github_id, username, email, role, is_active)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, role
-      `,
-      ["admin_github", "admin", "admin@test.com", "admin", true],
-    );
-    adminToken = TokenService.generateAccessToken(
-      adminResult.rows[0].id,
-      "admin",
-    );
+      // Create admin user
+      const adminResult = await pool.query(
+        `
+        INSERT INTO users (github_id, username, email, role, is_active)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, role
+        `,
+        ["admin_github", "admin", "admin@test.com", "admin", true],
+      );
+      adminToken = TokenService.generateAccessToken(
+        adminResult.rows[0].id,
+        "admin",
+      );
 
-    // Create analyst user
-    const analystResult = await pool.query(
-      `
-      INSERT INTO users (github_id, username, email, role, is_active)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, role
-      `,
-      ["analyst_github", "analyst", "analyst@test.com", "analyst", true],
-    );
-    analystToken = TokenService.generateAccessToken(
-      analystResult.rows[0].id,
-      "analyst",
-    );
+      // Create analyst user
+      const analystResult = await pool.query(
+        `
+        INSERT INTO users (github_id, username, email, role, is_active)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, role
+        `,
+        ["analyst_github", "analyst", "analyst@test.com", "analyst", true],
+      );
+      analystToken = TokenService.generateAccessToken(
+        analystResult.rows[0].id,
+        "analyst",
+      );
 
-    // Create inactive user
-    const inactiveResult = await pool.query(
-      `
-      INSERT INTO users (github_id, username, email, role, is_active)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING id, role
-      `,
-      ["inactive_github", "inactive", "inactive@test.com", "analyst", false],
-    );
-    inactiveUserToken = TokenService.generateAccessToken(
-      inactiveResult.rows[0].id,
-      "analyst",
-    );
+      // Create inactive user
+      const inactiveResult = await pool.query(
+        `
+        INSERT INTO users (github_id, username, email, role, is_active)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, role
+        `,
+        ["inactive_github", "inactive", "inactive@test.com", "analyst", false],
+      );
+      inactiveUserToken = TokenService.generateAccessToken(
+        inactiveResult.rows[0].id,
+        "analyst",
+      );
+    } catch (err) {
+      console.error("RBAC test setup error:", err.message);
+      throw err;
+    }
   });
 
   describe("Admin Access Tests", () => {
@@ -221,7 +226,7 @@ describe("Role-Based Access Control (RBAC) Tests", () => {
       expect(response.body.message).toBe("Invalid token");
     });
   });
-  
+
   afterAll(async () => {
     await pool.end();
     await new Promise((resolve) => setTimeout(resolve, 500));
