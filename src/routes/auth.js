@@ -9,7 +9,7 @@ router.use(authLimiter);
 router.get("/github", (req, res) => {
   const clientId = process.env.GITHUB_CLIENT_ID;
   let redirectUri = process.env.GITHUB_CALLBACK_URL;
-  const state = req.query.state || "";
+  let state = req.query.state || "";
   const isCLI = req.query.is_cli === "true";
   const cliCallbackUrl =
     req.query.cli_callback_url || "http://localhost:8080/callback";
@@ -22,10 +22,30 @@ router.get("/github", (req, res) => {
 
   let url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`;
 
-  if (state) {
+  if (isCLI && state) {
+    // For CLI with pre-existing state, merge code_verifier into it
+    try {
+      const stateObj = JSON.parse(state);
+      if (codeVerifier) {
+        stateObj.code_verifier = codeVerifier;
+      }
+      stateObj.is_cli = true;
+      state = JSON.stringify(stateObj);
+    } catch (e) {
+      // If state isn't JSON, create a new state object
+      state = JSON.stringify({
+        value: state,
+        is_cli: true,
+        code_verifier: codeVerifier,
+        cli_callback_url: cliCallbackUrl,
+      });
+    }
+    url += `&state=${encodeURIComponent(state)}`;
+  } else if (state) {
+    // Web request with existing state, use as-is
     url += `&state=${encodeURIComponent(state)}`;
   } else if (isCLI) {
-    // Create state object with CLI flag, callback URL, and code_verifier (for PKCE)
+    // CLI without pre-existing state, create new state object
     const stateObj = JSON.stringify({
       is_cli: true,
       cli_callback_url: cliCallbackUrl,
