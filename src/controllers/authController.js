@@ -12,12 +12,14 @@ class AuthController {
         is_cli: stateObj.is_cli === true,
         cli_callback_url:
           stateObj.cli_callback_url || "http://localhost:8080/callback",
+        code_verifier: stateObj.code_verifier || null,
       };
     } catch (e) {
       console.warn("Invalid GitHub callback state payload:", e.message);
       return {
         is_cli: queryIs_cli === "true",
         cli_callback_url: "http://localhost:8080/callback",
+        code_verifier: null,
       };
     }
   }
@@ -80,10 +82,8 @@ class AuthController {
   static async githubCallback(req, res) {
     const { code, state } = req.query;
 
-    const { is_cli, cli_callback_url } = AuthController.parseStateObject(
-      state,
-      req.query.is_cli,
-    );
+    const { is_cli, cli_callback_url, code_verifier } =
+      AuthController.parseStateObject(state, req.query.is_cli);
     const githubRedirectUri = is_cli
       ? cli_callback_url
       : process.env.GITHUB_CALLBACK_URL;
@@ -105,14 +105,23 @@ class AuthController {
       console.log(`🔑 Using OAuth app: ${is_cli ? "CLI" : "Web"}`);
       console.log(`🔑 Client ID: ${clientId?.substring(0, 15)}...`);
 
+      // Build token request payload
+      const tokenPayload = {
+        client_id: clientId,
+        client_secret: clientSecret,
+        code: code,
+        redirect_uri: githubRedirectUri,
+      };
+
+      // Add code_verifier if PKCE was used (CLI requests)
+      if (code_verifier) {
+        tokenPayload.code_verifier = code_verifier;
+        console.log("🔐 PKCE code_verifier included in token exchange");
+      }
+
       const tokenResponse = await axios.post(
         "https://github.com/login/oauth/access_token",
-        {
-          client_id: clientId,
-          client_secret: clientSecret,
-          code: code,
-          redirect_uri: githubRedirectUri,
-        },
+        tokenPayload,
         {
           headers: { Accept: "application/json" },
         },

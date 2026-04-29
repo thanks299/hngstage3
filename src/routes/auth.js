@@ -13,6 +13,7 @@ router.get("/github", (req, res) => {
   const isCLI = req.query.is_cli === "true";
   const cliCallbackUrl =
     req.query.cli_callback_url || "http://localhost:8080/callback";
+  const codeVerifier = req.query.code_verifier || "";
 
   // Allow CLI to override redirect_uri with its local callback
   if (isCLI && req.query.redirect_uri) {
@@ -24,10 +25,11 @@ router.get("/github", (req, res) => {
   if (state) {
     url += `&state=${encodeURIComponent(state)}`;
   } else if (isCLI) {
-    // Create state object with CLI flag and callback URL
+    // Create state object with CLI flag, callback URL, and code_verifier (for PKCE)
     const stateObj = JSON.stringify({
       is_cli: true,
       cli_callback_url: cliCallbackUrl,
+      code_verifier: codeVerifier,
     });
     url += `&state=${encodeURIComponent(stateObj)}`;
   }
