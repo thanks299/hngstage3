@@ -80,10 +80,17 @@ class AuthController {
   }
 
   static async githubCallback(req, res) {
-    const { code, state } = req.query;
+    const { code, state, code_verifier: queryCodeVerifier } = req.query;
 
-    const { is_cli, cli_callback_url, code_verifier } =
-      AuthController.parseStateObject(state, req.query.is_cli);
+    const {
+      is_cli,
+      cli_callback_url,
+      code_verifier: stateCodeVerifier,
+    } = AuthController.parseStateObject(state, req.query.is_cli);
+
+    // Use code_verifier from state (preferred) or from query param (fallback)
+    const code_verifier = stateCodeVerifier || queryCodeVerifier;
+
     const githubRedirectUri = is_cli
       ? cli_callback_url
       : process.env.GITHUB_CALLBACK_URL;
@@ -91,6 +98,9 @@ class AuthController {
     console.log("📥 GitHub Callback received");
     console.log("is_cli flag:", is_cli);
     console.log("Using redirect_uri for token exchange:", githubRedirectUri);
+    if (code_verifier) {
+      console.log("🔐 code_verifier found, PKCE enabled");
+    }
 
     if (!code) {
       return res.status(400).json({
