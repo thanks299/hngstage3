@@ -312,10 +312,12 @@ class AuthController {
         });
       }
 
-      console.log("🌐 Web request detected, redirecting to dashboard");
-      res.redirect(
-        `${process.env.WEB_PORTAL_URL || "http://localhost:3001"}/dashboard`,
+      console.log(
+        "🌐 Web request detected, redirecting to dashboard with token",
       );
+      const webPortalUrl =
+        process.env.WEB_PORTAL_URL || "http://localhost:3001";
+      res.redirect(`${webPortalUrl}/dashboard?token=${accessToken}`);
     } catch (error) {
       console.error("❌ GitHub callback error:");
       console.error("Error message:", error.message);
