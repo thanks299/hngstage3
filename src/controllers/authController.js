@@ -274,7 +274,9 @@ class AuthController {
         await AuthController.generateTokensAndStoreRefresh(user);
 
       const cookieDomain =
-        process.env.NODE_ENV === "production" ? ".onrender.com" : undefined; // undefined = current domain (localhost)
+        process.env.NODE_ENV === "production"
+          ? "insighta-web-3bpe.onrender.com"
+          : undefined;
 
       res.cookie("access_token", accessToken, {
         httpOnly: true,
