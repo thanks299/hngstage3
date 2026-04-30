@@ -275,13 +275,15 @@ class AuthController {
 
       const cookieDomain =
         process.env.NODE_ENV === "production"
-          ? "insighta-web-3bpe.onrender.com"
+          ? "insighta-web-3bpe.onrender.com" // ✅ Shared domain for all subdomains
           : undefined;
+
+      const sameSite = process.env.NODE_ENV === "production" ? "none" : "lax";
 
       res.cookie("access_token", accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production",
+        sameSite: sameSite,
         domain: cookieDomain,
         path: "/",
         maxAge: Number.parseInt(process.env.JWT_ACCESS_EXPIRY) * 1000,
@@ -290,7 +292,7 @@ class AuthController {
       res.cookie("refresh_token", refreshToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production",
+        sameSite: sameSite,
         domain: cookieDomain,
         path: "/",
         maxAge: Number.parseInt(process.env.JWT_REFRESH_EXPIRY) * 1000,
