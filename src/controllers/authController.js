@@ -275,7 +275,7 @@ class AuthController {
 
       const cookieDomain =
         process.env.NODE_ENV === "production"
-          ? "insighta-web-3bpe.onrender.com" // ✅ Shared domain for all subdomains
+          ? ".onrender.com" // ✅ Shared domain for all subdomains
           : undefined;
 
       const sameSite = process.env.NODE_ENV === "production" ? "none" : "lax";
