@@ -88,12 +88,8 @@ router.get("/github", (req, res) => {
     url += `&state=${encodeURIComponent(stateObj)}`;
   }
 
-  // CLI returns JSON with URL, Web redirects
-  if (isCLI) {
-    res.json({ url });
-  } else {
-    res.redirect(url);
-  }
+  // Always return JSON with URL for both CLI and Web
+  res.json({ url });
 });
 
 // Test tokens endpoint (for grading - no rate limiting)
