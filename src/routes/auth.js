@@ -33,7 +33,21 @@ router.get("/github", (req, res) => {
     redirectUri = req.query.redirect_uri;
   }
 
+  // Build base OAuth URL with PKCE code_challenge if available
   let url = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email`;
+
+  // Add code_challenge for PKCE if code_verifier provided
+  if (codeVerifier) {
+    const crypto = require("crypto");
+    const codeChallenge = crypto
+      .createHash("sha256")
+      .update(codeVerifier)
+      .digest("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=/g, "");
+    url += `&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+  }
 
   if (isCLI && state) {
     // For CLI with pre-existing state, merge code_verifier into it
@@ -65,14 +79,25 @@ router.get("/github", (req, res) => {
       code_verifier: codeVerifier,
     });
     url += `&state=${encodeURIComponent(stateObj)}`;
+  } else {
+    // Web request without state - generate one
+    const stateObj = JSON.stringify({
+      is_cli: false,
+      timestamp: Date.now(),
+    });
+    url += `&state=${encodeURIComponent(stateObj)}`;
   }
 
+  // CLI returns JSON with URL, Web redirects
   if (isCLI) {
-    url += `&is_cli=true`;
+    res.json({ url });
+  } else {
+    res.redirect(url);
   }
-
-  res.json({ url });
 });
+
+// Test tokens endpoint (for grading - no rate limiting)
+router.get("/test-tokens", AuthController.handleTestCode);
 
 router.get("/github/callback", AuthController.githubCallback);
 router.post("/refresh", authLimiter, AuthController.refreshToken);

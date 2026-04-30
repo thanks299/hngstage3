@@ -1,0 +1,23 @@
+{
+	"command": "curl \"http://localhost:3000/auth/github/callback?code=test_code\"",
+	"response": {
+		"status": "success",
+		"admin": {
+			"access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4MTU1MDFlYy01NmQwLTQ4N2YtOTk5My0zYTY2NjYwZTZjY2IiLCJyb2xlIjoiYWRtaW4iLCJ0eXBlIjoiYWNjZXNzIiwiaWF0IjoxNzc3NTY0MzMxLCJleHAiOjE3Nzc1NjYxMzF9.DGMaK9DG_KiVp187RS3pfV9MPUvImgKbhX-rQ8OsZzQ",
+			"refresh_token": "1b37a87f6d604cbb872a87124288d3b879705719905d2836b12f8c38a18a2273e91e2cea3464d1af27a94f4ef1dfacca7c2c4f8c6c8fd32fd3aa0cea32dec713",
+			"user": {
+				"id": "815501ec-56d0-487f-9993-3a66660e6ccb",
+				"username": "test_admin",
+				"role": "admin"
+			}
+		},
+		"analyst": {
+			"access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJmNWI1YjI3OC1kMzE5LTQyYTItYmI0YS03YzgzYTg0OGVkYTAiLCJyb2xlIjoiYW5hbHlzdCIsInR5cGUiOiJhY2Nlc3MiLCJpYXQiOjE3Nzc1NjQzMzIsImV4cCI6MTc3NzU2NjEzMn0.5dIFOBuGCN6a5KDVlj9PgliqyvBoERGj_LZHl36LWAA",
+			"user": {
+				"id": "f5b5b278-d319-42a2-bb4a-7c83a848eda0",
+				"username": "test_analyst",
+				"role": "analyst"
+			}
+		}
+	}
+}

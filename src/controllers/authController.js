@@ -83,6 +83,7 @@ class AuthController {
   static async handleTestCode(res) {
     console.log("🧪 Test code detected - generating test tokens");
 
+    // Create or get admin user
     const adminUserResult = await pool.query(
       `SELECT id, username, email, role, is_active 
        FROM users 
@@ -91,7 +92,7 @@ class AuthController {
       ["test_admin_github_id"],
     );
 
-    let testUser;
+    let adminUser;
     if (adminUserResult.rows.length === 0) {
       const createResult = await pool.query(
         `INSERT INTO users (github_id, username, email, role, is_active)
@@ -99,25 +100,68 @@ class AuthController {
          RETURNING id, username, email, role, is_active`,
         ["test_admin_github_id", "test_admin", "admin@test.com", "admin", true],
       );
-      testUser = createResult.rows[0];
+      adminUser = createResult.rows[0];
       console.log("✅ Test admin user created");
     } else {
-      testUser = adminUserResult.rows[0];
+      adminUser = adminUserResult.rows[0];
       console.log("✅ Test admin user found");
     }
 
-    const { accessToken, refreshToken } =
-      await AuthController.generateTokensAndStoreRefresh(testUser);
+    // Create or get analyst user
+    const analystUserResult = await pool.query(
+      `SELECT id, username, email, role, is_active 
+       FROM users 
+       WHERE github_id = $1 
+       LIMIT 1`,
+      ["test_analyst_github_id"],
+    );
+
+    let analystUser;
+    if (analystUserResult.rows.length === 0) {
+      const createResult = await pool.query(
+        `INSERT INTO users (github_id, username, email, role, is_active)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, username, email, role, is_active`,
+        [
+          "test_analyst_github_id",
+          "test_analyst",
+          "analyst@test.com",
+          "analyst",
+          true,
+        ],
+      );
+      analystUser = createResult.rows[0];
+      console.log("✅ Test analyst user created");
+    } else {
+      analystUser = analystUserResult.rows[0];
+      console.log("✅ Test analyst user found");
+    }
+
+    // Generate tokens for both users
+    const adminTokens =
+      await AuthController.generateTokensAndStoreRefresh(adminUser);
+    const analystTokens =
+      await AuthController.generateTokensAndStoreRefresh(analystUser);
 
     console.log("✅ Test tokens generated and stored");
     return res.json({
       status: "success",
-      access_token: accessToken,
-      refresh_token: refreshToken,
-      user: {
-        id: testUser.id,
-        username: testUser.username,
-        role: testUser.role,
+      admin: {
+        access_token: adminTokens.accessToken,
+        refresh_token: adminTokens.refreshToken,
+        user: {
+          id: adminUser.id,
+          username: adminUser.username,
+          role: adminUser.role,
+        },
+      },
+      analyst: {
+        access_token: analystTokens.accessToken,
+        user: {
+          id: analystUser.id,
+          username: analystUser.username,
+          role: analystUser.role,
+        },
       },
     });
   }
@@ -212,6 +256,14 @@ class AuthController {
   static async githubCallback(req, res) {
     const { code, state, code_verifier: queryCodeVerifier } = req.query;
 
+    // Validate state is present
+    if (!state) {
+      return res.status(400).json({
+        status: "error",
+        message: "State parameter is required for security",
+      });
+    }
+
     const {
       is_cli,
       cli_callback_url,
@@ -233,7 +285,7 @@ class AuthController {
     if (!code) {
       return res.status(400).json({
         status: "error",
-        message: "Authorization code required",
+        message: "Authorization code is required",
       });
     }
 
