@@ -273,11 +273,14 @@ class AuthController {
       const { accessToken, refreshToken } =
         await AuthController.generateTokensAndStoreRefresh(user);
 
+      const cookieDomain =
+        process.env.NODE_ENV === "production" ? ".onrender.com" : undefined; // undefined = current domain (localhost)
+
       res.cookie("access_token", accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "none",
-        domain: ".onrender.com",
+        domain: cookieDomain,
         maxAge: Number.parseInt(process.env.JWT_ACCESS_EXPIRY) * 1000,
       });
 
@@ -285,7 +288,7 @@ class AuthController {
         httpOnly: true,
         secure: true,
         sameSite: "none",
-        domain: ".onrender.com",
+        domain: cookieDomain,
         maxAge: Number.parseInt(process.env.JWT_REFRESH_EXPIRY) * 1000,
       });
 
