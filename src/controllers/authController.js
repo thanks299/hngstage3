@@ -79,6 +79,136 @@ class AuthController {
     return existingUser;
   }
 
+  // Helper: Handle test_code for grading
+  static async handleTestCode(res) {
+    console.log("🧪 Test code detected - generating test tokens");
+
+    const adminUserResult = await pool.query(
+      `SELECT id, username, email, role, is_active 
+       FROM users 
+       WHERE github_id = $1 
+       LIMIT 1`,
+      ["test_admin_github_id"],
+    );
+
+    let testUser;
+    if (adminUserResult.rows.length === 0) {
+      const createResult = await pool.query(
+        `INSERT INTO users (github_id, username, email, role, is_active)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, username, email, role, is_active`,
+        ["test_admin_github_id", "test_admin", "admin@test.com", "admin", true],
+      );
+      testUser = createResult.rows[0];
+      console.log("✅ Test admin user created");
+    } else {
+      testUser = adminUserResult.rows[0];
+      console.log("✅ Test admin user found");
+    }
+
+    const { accessToken, refreshToken } =
+      await AuthController.generateTokensAndStoreRefresh(testUser);
+
+    console.log("✅ Test tokens generated and stored");
+    return res.json({
+      status: "success",
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      user: {
+        id: testUser.id,
+        username: testUser.username,
+        role: testUser.role,
+      },
+    });
+  }
+
+  // Helper: Exchange GitHub code for access token and user data
+  static async exchangeGithubCode(
+    code,
+    githubRedirectUri,
+    code_verifier,
+    is_cli,
+  ) {
+    const { clientId, clientSecret } =
+      AuthController.getOAuthCredentials(is_cli);
+    console.log(`🔑 Using OAuth app: ${is_cli ? "CLI" : "Web"}`);
+    console.log(`🔑 Client ID: ${clientId?.substring(0, 15)}...`);
+
+    const tokenPayload = {
+      client_id: clientId,
+      client_secret: clientSecret,
+      code: code,
+      redirect_uri: githubRedirectUri,
+    };
+
+    if (code_verifier) {
+      tokenPayload.code_verifier = code_verifier;
+      console.log("🔐 PKCE code_verifier included in token exchange");
+    }
+
+    const tokenResponse = await axios.post(
+      "https://github.com/login/oauth/access_token",
+      tokenPayload,
+      { headers: { Accept: "application/json" } },
+    );
+
+    const { access_token } = tokenResponse.data;
+
+    if (!access_token) {
+      console.error("No access token received. Response:", tokenResponse.data);
+      throw new Error("Failed to get access token from GitHub");
+    }
+
+    console.log("✅ Access token received from GitHub");
+
+    const userResponse = await axios.get("https://api.github.com/user", {
+      headers: { Authorization: `Bearer ${access_token}` },
+    });
+
+    const githubUser = userResponse.data;
+    console.log("✅ GitHub user data retrieved:", githubUser.login);
+
+    const emailResponse = await axios.get(
+      "https://api.github.com/user/emails",
+      { headers: { Authorization: `Bearer ${access_token}` } },
+    );
+
+    const primaryEmail = emailResponse.data.find((email) => email.primary);
+    console.log("✅ Email data retrieved");
+
+    return { githubUser, primaryEmail };
+  }
+
+  // Helper: Generate tokens and store refresh token
+  static async generateTokensAndStoreRefresh(user) {
+    console.log("🔐 Generating JWT tokens...");
+    const accessToken = jwt.sign(
+      { userId: user.id, role: user.role, type: "access" },
+      process.env.JWT_SECRET,
+      { expiresIn: Number.parseInt(process.env.JWT_ACCESS_EXPIRY) },
+    );
+
+    const refreshToken = crypto.randomBytes(64).toString("hex");
+    const refreshExpiresAt = new Date(
+      Date.now() + Number.parseInt(process.env.JWT_REFRESH_EXPIRY) * 1000,
+    );
+    console.log("✅ Tokens generated");
+
+    console.log("💾 Storing refresh token...");
+    await pool.query(
+      "UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL",
+      [user.id],
+    );
+
+    await pool.query(
+      "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)",
+      [user.id, refreshToken, refreshExpiresAt],
+    );
+    console.log("✅ Refresh token stored");
+
+    return { accessToken, refreshToken };
+  }
+
   static async githubCallback(req, res) {
     const { code, state, code_verifier: queryCodeVerifier } = req.query;
 
@@ -88,9 +218,7 @@ class AuthController {
       code_verifier: stateCodeVerifier,
     } = AuthController.parseStateObject(state, req.query.is_cli);
 
-    // Use code_verifier from state (preferred) or from query param (fallback)
     const code_verifier = stateCodeVerifier || queryCodeVerifier;
-
     const githubRedirectUri = is_cli
       ? cli_callback_url
       : process.env.GITHUB_CALLBACK_URL;
@@ -109,70 +237,9 @@ class AuthController {
       });
     }
 
-    // Handle test_code for grading purposes
     if (code === "test_code") {
-      console.log("🧪 Test code detected - generating test tokens");
       try {
-        // Get or create admin test user
-        const adminUserResult = await pool.query(
-          `SELECT id, username, email, role, is_active 
-           FROM users 
-           WHERE github_id = $1 
-           LIMIT 1`,
-          ["test_admin_github_id"],
-        );
-
-        let testUser;
-        if (adminUserResult.rows.length === 0) {
-          // Create test admin user
-          const createResult = await pool.query(
-            `INSERT INTO users (github_id, username, email, role, is_active)
-             VALUES ($1, $2, $3, $4, $5)
-             RETURNING id, username, email, role, is_active`,
-            ["test_admin_github_id", "test_admin", "admin@test.com", "admin", true],
-          );
-          testUser = createResult.rows[0];
-          console.log("✅ Test admin user created");
-        } else {
-          testUser = adminUserResult.rows[0];
-          console.log("✅ Test admin user found");
-        }
-
-        // Generate tokens for test user
-        const accessToken = jwt.sign(
-          { userId: testUser.id, role: testUser.role, type: "access" },
-          process.env.JWT_SECRET,
-          { expiresIn: Number.parseInt(process.env.JWT_ACCESS_EXPIRY) },
-        );
-
-        const refreshToken = crypto.randomBytes(64).toString("hex");
-        const refreshExpiresAt = new Date(
-          Date.now() + Number.parseInt(process.env.JWT_REFRESH_EXPIRY) * 1000,
-        );
-
-        // Store refresh token
-        await pool.query(
-          "UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL",
-          [testUser.id],
-        );
-        await pool.query(
-          "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)",
-          [testUser.id, refreshToken, refreshExpiresAt],
-        );
-
-        console.log("✅ Test tokens generated and stored");
-
-        // Return JSON with tokens (for grader)
-        return res.json({
-          status: "success",
-          access_token: accessToken,
-          refresh_token: refreshToken,
-          user: {
-            id: testUser.id,
-            username: testUser.username,
-            role: testUser.role,
-          },
-        });
+        return await AuthController.handleTestCode(res);
       } catch (error) {
         console.error("❌ Test code handling error:", error.message);
         return res.status(500).json({
@@ -183,62 +250,13 @@ class AuthController {
     }
 
     try {
-      const { clientId, clientSecret } =
-        AuthController.getOAuthCredentials(is_cli);
-      console.log(`🔑 Using OAuth app: ${is_cli ? "CLI" : "Web"}`);
-      console.log(`🔑 Client ID: ${clientId?.substring(0, 15)}...`);
-
-      // Build token request payload
-      const tokenPayload = {
-        client_id: clientId,
-        client_secret: clientSecret,
-        code: code,
-        redirect_uri: githubRedirectUri,
-      };
-
-      // Add code_verifier if PKCE was used (CLI requests)
-      if (code_verifier) {
-        tokenPayload.code_verifier = code_verifier;
-        console.log("🔐 PKCE code_verifier included in token exchange");
-      }
-
-      const tokenResponse = await axios.post(
-        "https://github.com/login/oauth/access_token",
-        tokenPayload,
-        {
-          headers: { Accept: "application/json" },
-        },
-      );
-
-      const { access_token } = tokenResponse.data;
-
-      if (!access_token) {
-        console.error(
-          "No access token received. Response:",
-          tokenResponse.data,
+      const { githubUser, primaryEmail } =
+        await AuthController.exchangeGithubCode(
+          code,
+          githubRedirectUri,
+          code_verifier,
+          is_cli,
         );
-        throw new Error("Failed to get access token from GitHub");
-      }
-
-      console.log("✅ Access token received from GitHub");
-
-      // Get user data from GitHub
-      const userResponse = await axios.get("https://api.github.com/user", {
-        headers: { Authorization: `Bearer ${access_token}` },
-      });
-
-      const githubUser = userResponse.data;
-      console.log("✅ GitHub user data retrieved:", githubUser.login);
-
-      // Get user email
-      const emailResponse = await axios.get(
-        "https://api.github.com/user/emails",
-        {
-          headers: { Authorization: `Bearer ${access_token}` },
-        },
-      );
-      const primaryEmail = emailResponse.data.find((email) => email.primary);
-      console.log("✅ Email data retrieved");
 
       const user = await AuthController.getOrCreateUser(
         githubUser,
@@ -252,34 +270,9 @@ class AuthController {
         });
       }
 
-      // Generate tokens
-      console.log("🔐 Generating JWT tokens...");
-      const accessToken = jwt.sign(
-        { userId: user.id, role: user.role, type: "access" },
-        process.env.JWT_SECRET,
-        { expiresIn: Number.parseInt(process.env.JWT_ACCESS_EXPIRY) },
-      );
+      const { accessToken, refreshToken } =
+        await AuthController.generateTokensAndStoreRefresh(user);
 
-      const refreshToken = crypto.randomBytes(64).toString("hex");
-      const refreshExpiresAt = new Date(
-        Date.now() + Number.parseInt(process.env.JWT_REFRESH_EXPIRY) * 1000,
-      );
-      console.log("✅ Tokens generated");
-
-      // Store refresh token (revoke old ones first)
-      console.log("💾 Storing refresh token...");
-      await pool.query(
-        "UPDATE refresh_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = $1 AND revoked_at IS NULL",
-        [user.id],
-      );
-
-      await pool.query(
-        "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)",
-        [user.id, refreshToken, refreshExpiresAt],
-      );
-      console.log("✅ Refresh token stored");
-
-      // Set cookies
       res.cookie("access_token", accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -294,7 +287,6 @@ class AuthController {
         maxAge: Number.parseInt(process.env.JWT_REFRESH_EXPIRY) * 1000,
       });
 
-      // Check if request is from CLI
       if (is_cli) {
         console.log("📱 CLI request detected, returning JSON");
         return res.json({
@@ -309,7 +301,6 @@ class AuthController {
         });
       }
 
-      // Redirect to web portal
       console.log("🌐 Web request detected, redirecting to dashboard");
       res.redirect(
         `${process.env.WEB_PORTAL_URL || "http://localhost:3001"}/dashboard`,

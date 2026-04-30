@@ -2,13 +2,27 @@ const { Pool } = require("pg");
 require("dotenv").config();
 
 // Support both DATABASE_URL (Render) and individual variables (local)
+const isLocalDatabase = () => {
+  const dbUrl = process.env.DATABASE_URL || "";
+  return (
+    dbUrl.includes("localhost") ||
+    dbUrl.includes("127.0.0.1") ||
+    (dbUrl.includes("postgres://") && !dbUrl.includes("render"))
+  );
+};
+
+// Adjust pool settings for test environment
+const isTestEnv = process.env.NODE_ENV === "test";
+const maxConnections = isTestEnv ? 5 : 20;
+const connectionTimeout = isTestEnv ? 5000 : 2000;
+
 const poolConfig = process.env.DATABASE_URL
   ? {
       connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-      max: 20,
+      ssl: isLocalDatabase() ? false : { rejectUnauthorized: false },
+      max: maxConnections,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: connectionTimeout,
     }
   : {
       host: process.env.DB_HOST,
@@ -16,9 +30,9 @@ const poolConfig = process.env.DATABASE_URL
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      max: 20,
+      max: maxConnections,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      connectionTimeoutMillis: connectionTimeout,
     };
 
 const pool = new Pool(poolConfig);

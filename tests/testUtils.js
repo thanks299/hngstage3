@@ -27,7 +27,7 @@ async function cleanupTestDatabase() {
     if (pool && !pool.ended) {
       await pool.end();
     }
-  } catch (err) {
+  } catch {
     // Ignore if already closed
   }
 

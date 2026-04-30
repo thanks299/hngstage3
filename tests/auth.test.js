@@ -10,7 +10,7 @@ describe("Authentication Tests", () => {
     try {
       await pool.query("DELETE FROM refresh_tokens");
       await pool.query("DELETE FROM users");
-    } catch (err) {
+    } catch {
       // Ignore if tables don't exist yet
     }
   });
@@ -20,7 +20,7 @@ describe("Authentication Tests", () => {
       if (pool && !pool.ended) {
         await pool.end();
       }
-    } catch (err) {
+    } catch {
       // Ignore errors during cleanup
     }
     await new Promise((resolve) => setTimeout(resolve, 100));

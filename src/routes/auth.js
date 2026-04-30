@@ -44,7 +44,7 @@ router.get("/github", (req, res) => {
       }
       stateObj.is_cli = true;
       state = JSON.stringify(stateObj);
-    } catch (e) {
+    } catch {
       // If state isn't JSON, create a new state object
       state = JSON.stringify({
         value: state,
@@ -76,15 +76,19 @@ router.get("/github", (req, res) => {
 
 router.get("/github/callback", AuthController.githubCallback);
 router.post("/refresh", authLimiter, AuthController.refreshToken);
-router.post("/logout", (req, res, next) => {
-  // Enforce POST method
-  if (req.method !== "POST") {
-    return res.status(405).json({
-      status: "error",
-      message: "Method not allowed. Use POST for logout.",
-    });
-  }
-  next();
-}, AuthController.logout);
+router.post(
+  "/logout",
+  (req, res, next) => {
+    // Enforce POST method
+    if (req.method !== "POST") {
+      return res.status(405).json({
+        status: "error",
+        message: "Method not allowed. Use POST for logout.",
+      });
+    }
+    next();
+  },
+  AuthController.logout,
+);
 
 module.exports = router;
