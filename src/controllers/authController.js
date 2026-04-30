@@ -276,14 +276,16 @@ class AuthController {
       res.cookie("access_token", accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        sameSite: "none",
+        domain: ".onrender.com",
         maxAge: Number.parseInt(process.env.JWT_ACCESS_EXPIRY) * 1000,
       });
 
       res.cookie("refresh_token", refreshToken, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        secure: true,
+        sameSite: "none",
+        domain: ".onrender.com",
         maxAge: Number.parseInt(process.env.JWT_REFRESH_EXPIRY) * 1000,
       });
 
