@@ -19,12 +19,11 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
-app.use(
-  cors({
-    origin: [
-      process.env.WEB_PORTAL_URL,
-      "http://localhost:3001",
-      "http://localhost:8080",
+const corsOptions = {
+  origin: [
+    process.env.WEB_PORTAL_URL,
+    "http://localhost:3001",
+    "http://localhost:8080",
       "https://insighta-web-3bpe.onrender.com",
       "https://hngstage3.onrender.com",
     ],
