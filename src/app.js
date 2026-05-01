@@ -26,6 +26,7 @@ app.use(
       "http://localhost:3001",
       "http://localhost:8080",
       "https://insighta-web-3bpe.onrender.com",
+      "https://hngstage3.onrender.com",
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -34,9 +35,13 @@ app.use(
       "Authorization",
       "X-API-Version",
       "X-CSRF-Token",
+      "Cookie",
     ],
+    exposedHeaders: ["Set-Cookie"],
   }),
 );
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
