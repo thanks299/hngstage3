@@ -24,21 +24,20 @@ const corsOptions = {
     process.env.WEB_PORTAL_URL,
     "http://localhost:3001",
     "http://localhost:8080",
-      "https://insighta-web-3bpe.onrender.com",
-      "https://hngstage3.onrender.com",
-    ],
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "X-API-Version",
-      "X-CSRF-Token",
-      "Cookie",
-    ],
-    exposedHeaders: ["Set-Cookie"],
-  }),
-);
+    "https://insighta-web-3bpe.onrender.com",
+    "https://hngstage3.onrender.com",
+  ],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-API-Version",
+    "X-CSRF-Token",
+    "Cookie",
+  ],
+  exposedHeaders: ["Set-Cookie"],
+};
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
 app.use(cookieParser());
